@@ -4,9 +4,11 @@
 
 const SHA256 = require('crypto-js/sha256');
 const levelDB = require('./levelSandbox.js');
-let key = 0;
+const chaindb = levelDB.getDbReference();
+let key = 1000;
 console.log("levelDB");
-console.log(levelDB);
+console.log(levelDB.height);
+console.log(levelDB.getLevelDBData(501));
 
 
 /* ===== Block Class ==============================
@@ -54,13 +56,24 @@ class Blockchain{
 
   // Get block height
     getBlockHeight(){
-      return this.chain.length-1;
+      let x = 0;
+	    chaindb.createReadStream().on('data', function(data) {
+		          x++;
+		    }).on('error', function(error) {
+		    return console.log('something not correct in height', err0r)
+		  }).on('close', function() {
+		        console.log('Height # ' + x);
+		    return x;
+		  });
     }
 
     // get block
     getBlock(blockHeight){
-      // return object as a single string
-      return JSON.parse(JSON.stringify(this.chain[blockHeight]));
+      levelDB.getLevelDBData(blockHeight).then(function(data){
+        console.log("i'm sure");
+        console.log(data);
+        return data;
+      });
     }
 
     // validate block
@@ -85,12 +98,12 @@ class Blockchain{
    // Validate blockchain
     validateChain(){
       let errorLog = [];
-      for (var i = 0; i < this.chain.length-1; i++) {
+      for (var i = 0; i < this.getBlockHeight()-1; i++) {
         // validate block
         if (!this.validateBlock(i))errorLog.push(i);
         // compare blocks hash link
-        let blockHash = this.chain[i].hash;
-        let previousHash = this.chain[i+1].previousBlockHash;
+        let blockHash = this.getBlock[i].hash;
+        let previousHash = this.getBlock[i+1].previousBlockHash;
         if (blockHash!==previousHash) {
           errorLog.push(i);
         }
@@ -106,14 +119,11 @@ class Blockchain{
 
 // testing 
 
-// (function(){
-//   let blockchain = Blockchain();
-//   blockchain.addBlock(new Block("lalit"));
-//   //console.log(levelDB.getLevelDBData(0));
-// })();
-(function theLoop () {
-    setTimeout(function () {
-      let blockchain = new Blockchain();
-      blockchain.addBlock(new Block("lalit"));
-    }, 100);
-  })();
+// (function theLoop () {
+//     setTimeout(function () {
+//       let blockchain = new Blockchain();
+//       // blockchain.addBlock(new Block("lalit singh"));
+//       blockchain.getBlockHeight();
+//       console.log(blockchain.getBlock(1001));
+//     }, 100);
+//   })();
