@@ -18,11 +18,11 @@ function getLevelDBData(key){
   return new Promise((resolve,reject)=>{
     db.get(key, function(err, value) {
       if (err) {
-        return console.log('Not found!', err);
+        reject(err);
       }
       else{
-      resolve(value);
       console.log('Value = ' + value);
+         resolve(value);
       }
     })
   });
@@ -57,13 +57,5 @@ function getDbReference(){
 |    Bitcoin blockchain adds 8640 blocks per day                               |
 |     ( new block every 10 minutes )                                           |
 |  ===========================================================================*/
-
-
-// (function theLoop (i) {
-//   setTimeout(function () {
-//     addDataToLevelDB('Testing data');
-//     if (--i) theLoop(i);
-//   }, 100);
-// })(10);
 
 module.exports = { addLevelDBData, getLevelDBData ,getDbReference};

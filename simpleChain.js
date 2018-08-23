@@ -5,125 +5,155 @@
 const SHA256 = require('crypto-js/sha256');
 const levelDB = require('./levelSandbox.js');
 const chaindb = levelDB.getDbReference();
-let key = 1000;
-console.log("levelDB");
-console.log(levelDB.height);
-console.log(levelDB.getLevelDBData(501));
+
 
 
 /* ===== Block Class ==============================
 |  Class with a constructor for block 			   |
 |  ===============================================*/
 
-class Block{
-	constructor(data){
-     this.hash = "",
-     this.height = 0,
-     this.body = data,
-     this.time = 0,
-     this.previousBlockHash = ""
-    }
+class Block {
+  constructor(data) {
+    this.hash = "",
+      this.height = 0,
+      this.body = data,
+      this.time = 0,
+      this.previousBlockHash = ""
+  }
 }
 
 /* ===== Blockchain Class ==========================
 |  Class with a constructor for new blockchain 		|
 |  ================================================*/
 
-class Blockchain{
-  constructor(){
-    this.chain = [];
-    this.addBlock(new Block("First block in the chain - Genesis block"));
+class Blockchain {
+  constructor() {
+
+    let genesisBlock = new Block("First block in the chain - Genesis block");
+    genesisBlock.time = new Date().getTime().toString().slice(0, -3);
+    genesisBlock.hash = SHA256(JSON.stringify(genesisBlock)).toString();
+    this.getBlockHeight().then(function (height) {
+      if (height === 0) {
+        levelDB.addLevelDBData(height, genesisBlock);
+      }
+    });
   }
 
-  // Add new block
-  addBlock(newBlock){
+  /* ===== Blockchain Class ==========================
+  |  Class with a addBlock for new blockchain 		|
+  |  ================================================*/
+
+  addBlock(newBlock) {
     // Block height
-    newBlock.height = this.chain.length;
-    // UTC timestamp
-    newBlock.time = new Date().getTime().toString().slice(0,-3);
-    // previous block hash
-    if(this.chain.length>0){
-      newBlock.previousBlockHash = this.chain[this.chain.length-1].hash;
-    }
-    // Block hash with SHA256 using newBlock and converting to a string
-    newBlock.hash = SHA256(JSON.stringify(newBlock)).toString();
-    // Adding block object to chain
-    key += 1;
-    this.chain.push(newBlock);
-    // add data to level db
-    levelDB.addLevelDBData(key,newBlock);
+    return new Promise((resolve, reject) => {
+      let ref = this;
+      this.getBlockHeight().then(function (height) {
+        newBlock.height = height;
+        // UTC timestamp
+        newBlock.time = new Date().getTime().toString().slice(0, -3);
+        // Block hash with SHA256 using newBlock and converting to a string
+        newBlock.hash = SHA256(JSON.stringify(newBlock)).toString();
+
+        if (newBlock.height > 0) {
+          ref.getBlock(height - 1).then(function (response) {
+            newBlock.previousBlockHash = JSON.parse(response).hash;
+            // Adding block object to chain
+            levelDB.addLevelDBData(height, newBlock);
+            resolve(JSON.stringify(newBlock));
+          });
+        }
+      });
+    });
   }
 
-  // Get block height
-    getBlockHeight(){
+  /* ===== Blockchain Class ==========================
+|  Class with a getBlockHeight for new blockchain 		|
+|  ================================================*/
+
+  getBlockHeight() {
+    return new Promise((resolve, reject) => {
       let x = 0;
-	    chaindb.createReadStream().on('data', function(data) {
-		          x++;
-		    }).on('error', function(error) {
-		    return console.log('something not correct in height', err0r)
-		  }).on('close', function() {
-		        console.log('Height # ' + x);
-		    return x;
-		  });
-    }
-
-    // get block
-    getBlock(blockHeight){
-      levelDB.getLevelDBData(blockHeight).then(function(data){
-        console.log("i'm sure");
-        console.log(data);
-        return data;
+      chaindb.createReadStream().on('data', function (data) {
+        x++;
+      }).on('error', function (error) {
+        return console.log('something not correct in height', err0r)
+      }).on('close', function () {
+        console.log('Height # ' + x);
+        resolve(x)
       });
-    }
+    })
+  }
 
-    // validate block
-    validateBlock(blockHeight){
-      // get block object
-      let block = this.getBlock(blockHeight);
+  /* ===== Blockchain Class ==========================
+|  Class with a getBlock for new blockchain 		|
+|  ================================================*/
+
+  getBlock(blockHeight) {
+    return levelDB.getLevelDBData(blockHeight);
+  }
+
+  /* ===== Blockchain Class ==========================
+|  Class with a validateBlock for new blockchain 		|
+|  ================================================*/
+
+  validateBlock(blockHeight) {
+    // get block object
+    this.getBlock(blockHeight).then(function (response) {
+      let block = JSON.parse(response);
       // get block hash
-      let blockHash = block.hash;
-      // remove block hash to test block integrity
+      let blockHash = JSON.stringify(block.hash).toString();
       block.hash = '';
-      // generate block hash
       let validBlockHash = SHA256(JSON.stringify(block)).toString();
-      // Compare
-      if (blockHash===validBlockHash) {
-          return true;
-        } else {
-          console.log('Block #'+blockHeight+' invalid hash:\n'+blockHash+'<>'+validBlockHash);
-          return false;
-        }
-    }
 
-   // Validate blockchain
-    validateChain(){
-      let errorLog = [];
-      for (var i = 0; i < this.getBlockHeight()-1; i++) {
-        // validate block
-        if (!this.validateBlock(i))errorLog.push(i);
-        // compare blocks hash link
-        let blockHash = this.getBlock[i].hash;
-        let previousHash = this.getBlock[i+1].previousBlockHash;
-        if (blockHash!==previousHash) {
-          errorLog.push(i);
-        }
-      }
-      if (errorLog.length>0) {
-        console.log('Block errors = ' + errorLog.length);
-        console.log('Blocks: '+errorLog);
+      // Compare
+      if (blockHash === validBlockHash) {
+        console.log('Block #' + blockHeight + ' validated');
+        return true;
       } else {
-        console.log('No errors detected');
+        console.log('Block #' + blockHeight + ' invalid hash:\n' + blockHash + '<>' + validBlockHash);
+        return false;
       }
-    }
+    });
+  }
+
+  /* ===== Blockchain Class ==========================
+ |  Class with a validateChain for new blockchain 		|
+ |  ================================================*/
+
+  validateChain() {
+    let ref = this;
+    this.getBlockHeight().then(function (h) {
+      let errorLog = [];
+      for (var i = 0; i < h - 2; i++) {
+        // validate block
+        if (!ref.validateBlock(i)) errorLog.push(i);
+        // compare blocks hash link
+        ref.getBlock(i).then(function (data) {
+          let blockHash = JSON.parse(data).hash;
+          ref.getBlock(i + 1).then(function (data) {
+            let previousHash = JSON.parse(data).previousBlockHash;
+            if (blockHash !== previousHash) {
+              errorLog.push(i);
+            }
+            // check
+            if (errorLog.length > 0) {
+              console.log('Block errors = ' + errorLog.length);
+              console.log('Blocks: ' + errorLog);
+            } else {
+              console.log('No errors detected');
+            }
+          });
+        });
+
+      }
+
+    });
+  }
 }
 
-// testing 
+let blockchain = new Blockchain();
+function addBockForAPI(body) {
+  return blockchain.addBlock(new Block(body.toString()));
+}
 
-// (function theLoop () {
-//     setTimeout(function () {
-//       let blockchain = new Blockchain();
-//       // blockchain.addBlock(new Block("lalit singh"));
-//       blockchain.getBlockHeight();
-//       console.log(blockchain.getBlock(1001));
-//     }, 100);
-//   })();
+module.exports = { addBockForAPI};
